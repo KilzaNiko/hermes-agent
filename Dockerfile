@@ -80,5 +80,8 @@ ENV HERMES_WEB_DIST=/opt/hermes/hermes_cli/web_dist
 ENV HERMES_HOME=/opt/data
 ENV PATH="/opt/data/.local/bin:${PATH}"
 VOLUME [ "/opt/data" ]
+# Crear el acceso directo permanente para el comando hermes
+RUN echo '#!/bin/sh\nuv run hermes "$@"' > /usr/local/bin/hermes && \
+    chmod +x /usr/local/bin/hermes
 ENTRYPOINT [ "/usr/bin/tini", "-g", "--", "/opt/hermes/docker/entrypoint.sh" ]
 CMD ["gateway", "run", "--accept-hooks"]
