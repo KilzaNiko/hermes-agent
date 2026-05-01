@@ -427,10 +427,16 @@ class SlackAdapter(BasePlatformAdapter):
         is non-critical.
         """
         formatted = self.format_message(content)
+        # Slack's response_url has the same ~40k char limit as chat_postMessage.
+        # Truncate to MAX_MESSAGE_LENGTH and use only the first chunk — the
+        # response_url replaces a single ephemeral ack, so multi-chunk isn't
+        # possible.  Long responses are rare for command replies.
+        chunks = self.truncate_message(formatted, self.MAX_MESSAGE_LENGTH)
+        text = chunks[0] if chunks else formatted
         payload = {
             "response_type": "ephemeral",
             "replace_original": True,
-            "text": formatted,
+            "text": text,
         }
         try:
             async with aiohttp.ClientSession() as session:
@@ -536,6 +542,9 @@ class SlackAdapter(BasePlatformAdapter):
             # channel mentions arrive only as app_mention events rather than the
             # generic message event. Forward them into the normal message
             # pipeline so @mentions reliably produce replies.
+            # NOTE: when Slack fires BOTH message and app_mention for the same
+            # @mention, they share the same event ts — the dedup in
+            # _handle_slack_message (MessageDeduplicator) suppresses the second.
             @self._app.event("app_mention")
             async def handle_app_mention(event, say):
                 await self._handle_slack_message(event)
@@ -2680,8 +2689,11 @@ class SlackAdapter(BasePlatformAdapter):
         # Stash the Slack response_url so the first reply for this
         # channel+user can be routed ephemerally (replaces the initial
         # "Running /cmd…" ack shown by handle_hermes_command).
+        # Only stash for COMMAND events (text starts with "/") — free-form
+        # questions via "/hermes <question>" must produce public replies so
+        # the whole channel can see the agent's answer.
         response_url = command.get("response_url", "")
-        if response_url and user_id and channel_id:
+        if response_url and user_id and channel_id and text.startswith("/"):
             self._slash_command_contexts[(channel_id, user_id)] = {
                 "response_url": response_url,
                 "ts": time.monotonic(),
