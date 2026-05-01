@@ -87,12 +87,42 @@ hermes curator status         # last run, counts, pinned list, LRU top 5
 hermes curator run            # trigger a review now (background by default)
 hermes curator run --sync     # same, but block until the LLM pass finishes
 hermes curator run --dry-run  # preview only — report without any mutations
+hermes curator backup         # take a manual snapshot of ~/.hermes/skills/
+hermes curator rollback       # restore from the newest snapshot
+hermes curator rollback --list     # list available snapshots
+hermes curator rollback --id <ts>  # restore a specific snapshot
+hermes curator rollback -y         # skip the confirmation prompt
 hermes curator pause          # stop runs until resumed
 hermes curator resume
 hermes curator pin <skill>    # never auto-transition this skill
 hermes curator unpin <skill>
 hermes curator restore <skill>  # move an archived skill back to active
 ```
+
+## Backups and rollback
+
+Before every real curator pass, Hermes takes a tar.gz snapshot of `~/.hermes/skills/` at `~/.hermes/skills/.curator_backups/<utc-iso>/skills.tar.gz`. If a pass archives or consolidates something you didn't want touched, you can undo the whole run with one command:
+
+```bash
+hermes curator rollback        # restore newest snapshot (with confirmation)
+hermes curator rollback -y     # skip the prompt
+hermes curator rollback --list # see all snapshots with reason + size
+```
+
+The rollback itself is reversible: before replacing the skills tree, Hermes takes another snapshot tagged `pre-rollback to <target-id>`, so a mistaken rollback can be undone by rolling forward to that one with `--id`.
+
+You can also take manual snapshots at any time with `hermes curator backup --reason "before-refactor"`. The `--reason` string lands in the snapshot's `manifest.json` and is shown in `--list`.
+
+Snapshots are pruned to `curator.backup.keep` (default 5) to keep disk usage bounded:
+
+```yaml
+curator:
+  backup:
+    enabled: true
+    keep: 5
+```
+
+Set `curator.backup.enabled: false` to disable automatic snapshotting. The manual `hermes curator backup` command still works when backups are disabled only if you set `enabled: true` first — the flag gates both paths symmetrically so there's no way to accidentally skip the pre-run snapshot on mutating runs.
 
 `hermes curator status` also lists the five least-recently-used skills — a quick way to see what's likely to become stale next.
 

@@ -1156,6 +1156,21 @@ def run_curator_review(
         except Exception:
             counts = {"checked": 0, "marked_stale": 0, "archived": 0, "reactivated": 0}
     else:
+        # Pre-mutation snapshot — best-effort, never blocks the run. A
+        # failed snapshot logs at debug and continues (the alternative is
+        # that a transient disk issue silently disables curator forever,
+        # which is worse). Users who want to require snapshots can disable
+        # curator entirely until they can fix disk space.
+        try:
+            from agent import curator_backup
+            snap = curator_backup.snapshot_skills(reason="pre-curator-run")
+            if snap is not None and on_summary:
+                try:
+                    on_summary(f"curator: snapshot created ({snap.name})")
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.debug("Curator pre-run snapshot failed: %s", e, exc_info=True)
         counts = apply_automatic_transitions(now=start)
 
     auto_summary_parts = []

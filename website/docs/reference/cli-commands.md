@@ -720,6 +720,11 @@ The curator is an auxiliary-model background task that periodically reviews agen
 | `run` | Trigger a curator review now |
 | `run --sync` | Block until the LLM pass finishes |
 | `run --dry-run` | Preview only — produce the review report with no mutations |
+| `backup` | Take a manual tar.gz snapshot of `~/.hermes/skills/` (curator also snapshots automatically before every real run) |
+| `rollback` | Restore `~/.hermes/skills/` from a snapshot (defaults to newest) |
+| `rollback --list` | List available snapshots |
+| `rollback --id <ts>` | Restore a specific snapshot by id |
+| `rollback -y` | Skip the confirmation prompt |
 | `pause` | Pause the curator until resumed |
 | `resume` | Resume a paused curator |
 | `pin <skill>` | Pin a skill so the curator never auto-transitions it |
