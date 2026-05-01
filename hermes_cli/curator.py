@@ -160,7 +160,11 @@ def _cmd_run(args) -> int:
         print("curator: disabled via config; enable with `curator.enabled: true`")
         return 1
 
-    print("curator: running review pass...")
+    dry = bool(getattr(args, "dry_run", False))
+    if dry:
+        print("curator: running DRY-RUN (report only, no mutations)...")
+    else:
+        print("curator: running review pass...")
 
     def _on_summary(msg: str) -> None:
         print(msg)
@@ -168,17 +172,29 @@ def _cmd_run(args) -> int:
     result = curator.run_curator_review(
         on_summary=_on_summary,
         synchronous=bool(args.synchronous),
+        dry_run=dry,
     )
     auto = result.get("auto_transitions", {})
     if auto:
-        print(
-            f"auto: checked={auto.get('checked', 0)} "
-            f"stale={auto.get('marked_stale', 0)} "
-            f"archived={auto.get('archived', 0)} "
-            f"reactivated={auto.get('reactivated', 0)}"
-        )
+        if dry:
+            print(
+                f"auto (preview): {auto.get('checked', 0)} candidate skill(s) "
+                "— no transitions applied in dry-run"
+            )
+        else:
+            print(
+                f"auto: checked={auto.get('checked', 0)} "
+                f"stale={auto.get('marked_stale', 0)} "
+                f"archived={auto.get('archived', 0)} "
+                f"reactivated={auto.get('reactivated', 0)}"
+            )
     if not args.synchronous:
         print("llm pass running in background — check `hermes curator status` later")
+    if dry:
+        print(
+            "dry-run: no changes applied. When the report lands, read it with "
+            "`hermes curator status` and run `hermes curator run` (no flag) to apply."
+        )
     return 0
 
 
@@ -249,6 +265,11 @@ def register_cli(parent: argparse.ArgumentParser) -> None:
     p_run.add_argument(
         "--sync", "--synchronous", dest="synchronous", action="store_true",
         help="Wait for the LLM review pass to finish (default: background thread)",
+    )
+    p_run.add_argument(
+        "--dry-run", dest="dry_run", action="store_true",
+        help="Report only — no state changes, no archives, no consolidation "
+             "(use this to preview what curator would do)",
     )
     p_run.set_defaults(func=_cmd_run)
 

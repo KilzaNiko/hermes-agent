@@ -23,6 +23,12 @@ The curator is triggered by an inactivity check, not a cron daemon. On CLI sessi
 
 If both are true, it spawns a background fork of `AIAgent` — the same pattern used by the memory/skill self-improvement nudges. The fork runs in its own prompt cache and never touches the active conversation.
 
+:::info First-run behavior
+On a brand-new install (or the first time a pre-curator install ticks after `hermes update`), the curator **does not run immediately**. The first observation seeds `last_run_at` to "now" and defers the first real pass by one full `interval_hours`. This gives you a full interval to review your skill library, pin anything important, or opt out entirely before the curator ever touches it.
+
+If you want to see what the curator *would* do before it runs for real, run `hermes curator run --dry-run` — it produces the same review report without mutating the library.
+:::
+
 A run has two phases:
 
 1. **Automatic transitions** (deterministic, no LLM). Skills unused for `stale_after_days` (30) become `stale`; skills unused for `archive_after_days` (90) are moved to `~/.hermes/skills/.archive/`.
@@ -80,6 +86,7 @@ Earlier releases used a one-off `curator.auxiliary.{provider,model}` block. That
 hermes curator status         # last run, counts, pinned list, LRU top 5
 hermes curator run            # trigger a review now (background by default)
 hermes curator run --sync     # same, but block until the LLM pass finishes
+hermes curator run --dry-run  # preview only — report without any mutations
 hermes curator pause          # stop runs until resumed
 hermes curator resume
 hermes curator pin <skill>    # never auto-transition this skill
@@ -103,6 +110,18 @@ Everything else in `~/.hermes/skills/` is fair game for the curator. This includ
 - Skills the agent saved via `skill_manage(action="create")` during a conversation.
 - Skills you created manually with a hand-written `SKILL.md`.
 - Skills added via external skill directories you've pointed Hermes at.
+
+:::warning Your hand-written skills look the same as agent-saved ones
+Provenance here is **binary** (bundled/hub vs. everything else). The curator cannot tell a hand-authored skill you rely on for private workflows apart from a skill the self-improvement loop saved mid-session. Both land in the "agent-created" bucket.
+
+Before the first real pass (7 days after installation by default), take a moment to:
+
+1. Run `hermes curator run --dry-run` to see exactly what the curator would propose.
+2. Use `hermes curator pin <name>` to fence off anything you don't want touched.
+3. Or set `curator.enabled: false` in `config.yaml` if you'd rather manage the library yourself.
+
+Archives are always recoverable via `hermes curator restore <name>`, but it's easier to pin up-front than to chase down a consolidation after the fact.
+:::
 
 If you want to protect a specific skill from ever being touched — for example a hand-authored skill you rely on — use `hermes curator pin <name>`. See the next section.
 
